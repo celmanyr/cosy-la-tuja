@@ -227,6 +227,33 @@
     header .header-text h1 { font-size: 15px; }
     .detalle-item-row { grid-template-columns: 1fr 80px 32px; }
   }
+
+  /* MODAL EDICIÓN */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .modal-box {
+    background: var(--card);
+    border-radius: 16px;
+    border: 1px solid var(--naranja);
+    width: 100%; max-width: 420px;
+    padding: 20px;
+    box-shadow: 0 8px 40px rgba(232,84,10,0.3);
+  }
+  .modal-title {
+    font-size: 14px; font-weight: 800;
+    color: var(--naranja); text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .modal-footer {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 8px; margin-top: 16px;
+  }
 </style>
 </head>
 <body>
@@ -349,6 +376,34 @@
     <input id="prodInput" placeholder="Nuevo producto">
     <button class="btn btn-primary" onclick="addProd()">Agregar Producto</button>
     <div id="prodList"></div>
+  </div>
+</div>
+
+<!-- MODAL EDICIÓN -->
+<div id="editModal" class="modal-overlay" style="display:none" onclick="closeModal(event)">
+  <div class="modal-box">
+    <div class="modal-title">✏️ Editar Compra</div>
+
+    <div class="section-label">Método de pago</div>
+    <select id="editPay">
+      <option value="EFECTIVO">💵 EFECTIVO</option>
+      <option value="QR">📲 QR</option>
+      <option value="DEBO">🧾 DEBO</option>
+    </select>
+
+    <div class="section-label">Ítems del detalle</div>
+    <div id="editDetalleRows"></div>
+    <button class="btn btn-secondary" style="padding:9px;margin-bottom:10px" onclick="addEditDetalleRow()">+ Agregar ítem</button>
+
+    <div style="background:var(--card2);border-radius:10px;padding:12px;text-align:center">
+      <div style="font-size:11px;color:var(--gris)">Nuevo total</div>
+      <div id="editTotalPreview" style="font-size:26px;font-weight:900;color:var(--naranja)">0.00 Bs</div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveEdit()">✅ Guardar</button>
+    </div>
   </div>
 </div>
 
@@ -599,6 +654,107 @@ async function deleteItem(id){
   showStatus("🗑️ Eliminada");
 }
 
+// ===== MODAL EDICIÓN =====
+let _editId = null;
+let _editDetalleCount = 0;
+
+function openEditModal(id){
+  const d = data.find(x=>x.id===id);
+  if(!d) return;
+  _editId = id;
+
+  // Pago
+  document.getElementById("editPay").value = d.metodo_pago || "EFECTIVO";
+
+  // Ítems
+  _editDetalleCount = 0;
+  document.getElementById("editDetalleRows").innerHTML = "";
+  const items = parseDetalle(d);
+  if(items.length){
+    items.forEach(i => addEditDetalleRow(i.nombre, i.precio));
+  } else {
+    // Si no tiene detalle, crear un ítem con el total original
+    addEditDetalleRow("", d.total || 0);
+  }
+
+  recalcEditDetalle();
+  document.getElementById("editModal").style.display = "flex";
+}
+
+function closeModal(e){
+  if(e && e.target !== document.getElementById("editModal")) return;
+  document.getElementById("editModal").style.display = "none";
+  _editId = null;
+}
+
+function addEditDetalleRow(nombre="", precio=0){
+  _editDetalleCount++;
+  const id = _editDetalleCount;
+  const row = document.createElement("div");
+  row.className = "detalle-item-row";
+  row.id = "editrow-"+id;
+  row.innerHTML = `
+    <input type="text" placeholder="Ítem (ej: escoba)" id="editnom-${id}" value="${nombre}">
+    <input type="number" placeholder="Precio" id="editprc-${id}" value="${precio||""}" inputmode="decimal" oninput="recalcEditDetalle()">
+    <button class="btn-sm btn-sm-del" onclick="removeEditRow(${id})" style="padding:9px 8px">✕</button>`;
+  document.getElementById("editDetalleRows").appendChild(row);
+}
+
+function removeEditRow(id){
+  const el = document.getElementById("editrow-"+id);
+  if(el) el.remove();
+  recalcEditDetalle();
+}
+
+function recalcEditDetalle(){
+  const rows = document.querySelectorAll("#editDetalleRows .detalle-item-row");
+  let total = 0;
+  rows.forEach(r => {
+    const prcEl = r.querySelector('input[type="number"]');
+    if(prcEl) total += parseFloat(prcEl.value)||0;
+  });
+  document.getElementById("editTotalPreview").textContent = total.toFixed(2)+" Bs";
+}
+
+function getEditDetalleItems(){
+  const rows = document.querySelectorAll("#editDetalleRows .detalle-item-row");
+  let items = [];
+  rows.forEach(r => {
+    const nomEl = r.querySelector('input[type="text"]');
+    const prcEl = r.querySelector('input[type="number"]');
+    if(nomEl && prcEl){
+      const nom = nomEl.value.trim();
+      const prc = parseFloat(prcEl.value)||0;
+      if(nom||prc) items.push({nombre: nom||"Ítem", precio: prc});
+    }
+  });
+  return items;
+}
+
+async function saveEdit(){
+  if(!_editId) return;
+  const pay = document.getElementById("editPay").value;
+  const items = getEditDetalleItems();
+  if(!items.length){ showStatus("⚠️ Agrega al menos un ítem",false); return; }
+  const total = items.reduce((s,i)=>s+i.precio, 0);
+  if(total<=0){ showStatus("⚠️ El total debe ser mayor a 0",false); return; }
+
+  showStatus("Guardando...");
+  await dbPatch("compras", _editId, {
+    metodo_pago: pay,
+    detalle: JSON.stringify(items),
+    cantidad: items.length,
+    precio: total,
+    total: total
+  });
+
+  document.getElementById("editModal").style.display = "none";
+  _editId = null;
+  await loadData();
+  renderHistorial();
+  showStatus("✅ Compra actualizada");
+}
+
 // ===== HISTORIAL =====
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 function setTodayFilter(){ document.getElementById("fDate").value=todayISO(); renderHistorial(); }
@@ -666,7 +822,10 @@ function renderHistorial(){
         ${renderDetalleHTML(items)}
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
           <span class="badge badge-${(d.metodo_pago||"").toLowerCase()}">${d.metodo_pago}</span>
-          <button class="btn-sm btn-sm-del" onclick="deleteItem(${d.id})">🗑️ Eliminar</button>
+          <div>
+            <button class="btn-sm btn-sm-edit" onclick="openEditModal(${d.id})">✏️</button>
+            <button class="btn-sm btn-sm-del" onclick="deleteItem(${d.id})">🗑️</button>
+          </div>
         </div>
       </div>`;
     }).join("");

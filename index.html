@@ -650,8 +650,12 @@ async function addBuy(){
   if(total<=0){ showStatus("⚠️ Ingresa precios en los ítems",false); return; }
 
   const now=new Date();
-  const dateISO=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
-  const fecha=String(now.getDate()).padStart(2,"0")+"/"+String(now.getMonth()+1).padStart(2,"0")+"/"+now.getFullYear();
+  const _parts=new Intl.DateTimeFormat("en-CA",{timeZone:"America/La_Paz",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(now);
+  const _y=_parts.find(p=>p.type==="year").value;
+  const _m=_parts.find(p=>p.type==="month").value;
+  const _d=_parts.find(p=>p.type==="day").value;
+  const dateISO=`${_y}-${_m}-${_d}`;
+  const fecha=`${_d}/${_m}/${_y}`;
   const detalleStr=JSON.stringify(items);
 
   showStatus("Guardando...");
@@ -786,7 +790,14 @@ async function saveEdit(){
 }
 
 // ===== HISTORIAL =====
-function todayISO(){ const n=new Date(); return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0"); }
+function todayISO(){
+  const n=new Date();
+  const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"America/La_Paz",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(n);
+  const y=parts.find(p=>p.type==="year").value;
+  const m=parts.find(p=>p.type==="month").value;
+  const d=parts.find(p=>p.type==="day").value;
+  return `${y}-${m}-${d}`;
+}
 function setTodayFilter(){ document.getElementById("fDate").value=todayISO(); renderHistorial(); }
 function clearDateFilter(){ document.getElementById("fDate").value=""; renderHistorial(); }
 

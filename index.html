@@ -601,7 +601,7 @@ function removeDetalleRow(id){
 }
 
 function recalcDetalle(){
-  const rows=document.querySelectorAll(".detalle-item-row");
+  const rows=document.querySelectorAll("#detalleRows .detalle-item-row");
   let total=0;
   rows.forEach(r=>{
     const prcEl=r.querySelector('input[type="number"]');
@@ -611,7 +611,7 @@ function recalcDetalle(){
 }
 
 function getDetalleItems(){
-  const rows=document.querySelectorAll(".detalle-item-row");
+  const rows=document.querySelectorAll("#detalleRows .detalle-item-row");
   let items=[];
   rows.forEach(r=>{
     const nomEl=r.querySelector('input[type="text"]');
